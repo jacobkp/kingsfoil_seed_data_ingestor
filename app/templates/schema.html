@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+
+{% block title %}{{ category_name }} Schema - Kingsfoil{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <h1>{{ category_name }}</h1>
+    <p class="page-subtitle">{{ category_description }}</p>
+</div>
+
+<!-- Category Navigation -->
+<div class="card mb-lg">
+    <div class="card-body" style="padding: var(--space-md);">
+        <div class="flex gap-md" style="flex-wrap: wrap;">
+            {% for cat_key, cat_info in categories.items() %}
+            <a href="/schema/{{ cat_key }}"
+               class="btn {% if cat_key == category %}btn-primary{% else %}btn-secondary{% endif %}">
+                {{ cat_info.name }}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Source Tabs -->
+<div class="card mb-lg">
+    <div class="card-body" style="padding: var(--space-md);">
+        <div class="flex gap-sm" style="flex-wrap: wrap;">
+            {% for source in sources %}
+            <a href="/schema/{{ category }}?source={{ source.source_code }}"
+               class="btn btn-sm {% if source.source_code == selected_source.source_code %}btn-primary{% else %}btn-secondary{% endif %}">
+                {{ source.source_code }}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Source Overview -->
+<div class="card mb-lg">
+    <div class="card-header">
+        <h3 class="mb-0">{{ selected_source.source_name }}</h3>
+    </div>
+    <div class="card-body">
+        <div class="stats-grid mb-lg">
+            <div class="stat-item">
+                <div class="stat-value" style="font-size: var(--font-size-base); font-family: monospace;">
+                    {{ selected_source.target_table }}
+                </div>
+                <div class="stat-label">Target Table</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">{{ columns | length }}</div>
+                <div class="stat-label">Columns</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">{{ selected_source.update_frequency or 'N/A' }}</div>
+                <div class="stat-label">Update Frequency</div>
+            </div>
+            {% if latest_version %}
+            <div class="stat-item">
+                <div class="stat-value">{{ latest_version.record_count | default('N/A') | int if latest_version.record_count else 'N/A' }}</div>
+                <div class="stat-label">Current Records</div>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if selected_source.description %}
+        <p class="text-muted">{{ selected_source.description }}</p>
+        {% endif %}
+
+        {% if latest_version %}
+        <div class="alert alert-info mt-lg">
+            <strong>Latest Version:</strong> {{ latest_version.version_label }}
+            {% if latest_version.variant %} ({{ latest_version.variant }}){% endif %}
+            — Imported {{ latest_version.imported_at.strftime('%Y-%m-%d %H:%M') if latest_version.imported_at else 'N/A' }}
+        </div>
+        {% else %}
+        <div class="alert alert-warning mt-lg">
+            No data has been uploaded for this source yet.
+            <a href="/upload/{{ selected_source.source_code }}" class="btn btn-sm btn-primary" style="margin-left: var(--space-md);">Upload Now</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Column Documentation -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="mb-0">Column Documentation</h3>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        <div class="table-container">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th style="width: 180px;">Column Name</th>
+                        <th style="width: 100px;">Type</th>
+                        <th style="width: 100px;">Required</th>
+                        <th>Description</th>
+                        <th style="width: 200px;">File Headers</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for col in columns %}
+                    <tr>
+                        <td>
+                            <code>{{ col.internal_name }}</code>
+                            <br>
+                            <span class="text-muted" style="font-size: var(--font-size-xs);">{{ col.display_name }}</span>
+                        </td>
+                        <td>
+                            <span class="badge badge-gray">{{ col.data_type }}</span>
+                        </td>
+                        <td>
+                            {% if col.is_required %}
+                            <span class="badge badge-error">Required</span>
+                            {% else %}
+                            <span class="badge badge-gray">Optional</span>
+                            {% endif %}
+                            {% if not col.is_nullable %}
+                            <span class="badge badge-warning" style="margin-top: 4px;">Not Null</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if col.semantic_context %}
+                            <p style="margin: 0 0 var(--space-sm);">{{ col.semantic_context }}</p>
+                            {% endif %}
+                            {% if col.analyzer_usage %}
+                            <p class="text-muted" style="margin: 0; font-size: var(--font-size-sm);">
+                                <strong>Usage:</strong> {{ col.analyzer_usage }}
+                            </p>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if col.source_headers %}
+                            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                                {% for header in col.source_headers %}
+                                <code style="font-size: var(--font-size-xs); background: var(--color-gray-100); padding: 2px 6px; border-radius: 3px;">{{ header }}</code>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="card mt-lg">
+    <div class="card-footer">
+        <a href="/upload/{{ selected_source.source_code }}" class="btn btn-primary">
+            Upload {{ selected_source.source_code }} Data
+        </a>
+        <a href="/" class="btn btn-secondary">Back to Dashboard</a>
+    </div>
+</div>
+{% endblock %}

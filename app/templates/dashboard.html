@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Kingsfoil Data Pipeline{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <h1>CMS Data Pipeline</h1>
+    <p class="page-subtitle">Upload and manage CMS regulatory data files</p>
+</div>
+
+{% for category, sources in categories.items() %}
+<div class="mb-xl">
+    <h2 class="mb-lg">{{ category }}</h2>
+
+    <div class="dashboard-grid">
+        {% for source in sources %}
+        <div class="source-card">
+            <div class="source-header">
+                <div>
+                    <div class="source-name">{{ source.source_name }}</div>
+                    <div class="source-code">{{ source.source_code }}</div>
+                </div>
+                {% if source.is_current %}
+                <span class="badge badge-success">Current</span>
+                {% endif %}
+            </div>
+
+            <p class="source-meta mb-md">
+                {{ source.description | truncate(100) if source.description else 'No description' }}
+            </p>
+
+            <div class="source-meta mb-lg">
+                <strong>Target:</strong> <code>{{ source.target_table }}</code><br>
+                <strong>Update Frequency:</strong> {{ source.update_frequency or 'N/A' }}
+            </div>
+
+            {% if source.latest_version %}
+            <div class="source-meta mb-lg" style="padding: 10px; background: var(--color-gray-50); border-radius: var(--radius-md);">
+                <strong>Latest:</strong> {{ source.latest_version }}
+                {% if source.latest_variant %} ({{ source.latest_variant }}){% endif %}<br>
+                <strong>Records:</strong> {{ source.latest_record_count | default('N/A') | int if source.latest_record_count else 'N/A' }}<br>
+                <strong>Uploaded:</strong> {{ source.latest_imported_at.strftime('%Y-%m-%d %H:%M') if source.latest_imported_at else 'N/A' }}
+            </div>
+            {% else %}
+            <div class="source-meta mb-lg" style="padding: 10px; background: var(--color-warning-bg); border-radius: var(--radius-md);">
+                <span class="text-warning">No data uploaded yet</span>
+            </div>
+            {% endif %}
+
+            <a href="/upload/{{ source.source_code }}" class="btn btn-primary" style="width: 100%;">
+                Upload Data
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endfor %}
+
+{% if not categories %}
+<div class="card">
+    <div class="card-body text-center">
+        <p class="text-muted">No data sources found. Run the seed_data.py script to populate metadata.</p>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

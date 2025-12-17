@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block title %}Upload {{ source.source_name }} - Kingsfoil{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <h1>Upload {{ source.source_name }}</h1>
+    <p class="page-subtitle">{{ source.description }}</p>
+</div>
+
+{% if last_upload %}
+<div class="alert alert-info mb-lg">
+    <strong>Last Upload:</strong>
+    {{ last_upload.version_label }}{% if last_upload.variant %} ({{ last_upload.variant }}){% endif %}
+    - {{ last_upload.record_count | default('N/A') }} records
+    - {{ last_upload.imported_at.strftime('%Y-%m-%d %H:%M') if last_upload.imported_at else 'Unknown' }}
+</div>
+{% endif %}
+
+<div class="card">
+    <form action="/upload/{{ source.source_code }}/validate" method="post" enctype="multipart/form-data" id="upload-form">
+        <div class="card-body">
+            <!-- Version Info -->
+            <div class="form-inline mb-lg">
+                <div class="form-group">
+                    <label class="form-label form-label-required" for="year">Year</label>
+                    <select class="form-select" id="year" name="year" required>
+                        {% for y in years %}
+                        <option value="{{ y }}" {% if y == current_year %}selected{% endif %}>{{ y }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label form-label-required" for="quarter">Quarter</label>
+                    <select class="form-select" id="quarter" name="quarter" required>
+                        {% for q in quarters %}
+                        <option value="{{ q }}" {% if q == current_quarter %}selected{% endif %}>Q{{ q }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% if has_variants %}
+                <div class="form-group">
+                    <label class="form-label form-label-required" for="variant">Variant</label>
+                    <select class="form-select" id="variant" name="variant" required>
+                        <option value="">Select variant...</option>
+                        {% for v in variants %}
+                        <option value="{{ v }}">{{ v }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+            </div>
+
+            {% if supports_multi_part %}
+            <!-- Multi-part file info for NCCI PTP -->
+            <div class="alert alert-info mb-lg">
+                <strong>Multi-Part Files:</strong> NCCI PTP files are split into multiple parts by CMS.
+                You can upload each part file separately - they will be combined into a single version.
+                {% if existing_versions %}
+                <div class="mt-md">
+                    <strong>Existing versions:</strong>
+                    <ul style="margin: var(--space-sm) 0 0; padding-left: var(--space-lg);">
+                        {% for ev in existing_versions[:5] %}
+                        <li>{{ ev.version_label }} ({{ ev.variant }}) - {{ ev.record_count | default(0) | int }} records, {{ ev.part_count }} part(s)</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- File Upload -->
+            <div class="form-group">
+                <label class="form-label form-label-required">Data File</label>
+                <div class="file-upload" id="file-dropzone">
+                    <svg class="file-upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    <p class="file-upload-text">
+                        <strong>Click to upload</strong> or drag and drop
+                    </p>
+                    <p class="file-upload-hint">
+                        Supported: {{ source.file_formats | join(', ') | upper }}
+                        (max {{ settings.max_upload_size_mb if settings else 100 }}MB)
+                    </p>
+                    <input type="file" id="file-input" name="file" accept=".csv,.xlsx,.xls,.txt" required>
+                </div>
+                <div class="file-selected hidden" id="file-selected">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                    </svg>
+                    <span class="file-selected-name" id="file-name"></span>
+                    <span class="file-selected-size" id="file-size"></span>
+                    <button type="button" class="btn btn-sm btn-secondary" id="file-remove">Remove</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-footer">
+            <button type="submit" class="btn btn-primary btn-lg" id="submit-btn">
+                <span class="htmx-indicator spinner"></span>
+                Validate File
+            </button>
+            <a href="/" class="btn btn-secondary btn-lg">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const dropzone = document.getElementById('file-dropzone');
+    const fileInput = document.getElementById('file-input');
+    const fileSelected = document.getElementById('file-selected');
+    const fileName = document.getElementById('file-name');
+    const fileSize = document.getElementById('file-size');
+    const fileRemove = document.getElementById('file-remove');
+    const submitBtn = document.getElementById('submit-btn');
+
+    // Format file size
+    function formatSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    // Handle file selection
+    function handleFile(file) {
+        if (file) {
+            fileName.textContent = file.name;
+            fileSize.textContent = formatSize(file.size);
+            dropzone.classList.add('hidden');
+            fileSelected.classList.remove('hidden');
+        }
+    }
+
+    // Click to upload
+    dropzone.addEventListener('click', () => fileInput.click());
+
+    // File input change
+    fileInput.addEventListener('change', function() {
+        if (this.files.length > 0) {
+            handleFile(this.files[0]);
+        }
+    });
+
+    // Remove file
+    fileRemove.addEventListener('click', function(e) {
+        e.preventDefault();
+        fileInput.value = '';
+        dropzone.classList.remove('hidden');
+        fileSelected.classList.add('hidden');
+    });
+
+    // Drag and drop
+    dropzone.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        this.classList.add('dragover');
+    });
+
+    dropzone.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        this.classList.remove('dragover');
+    });
+
+    dropzone.addEventListener('drop', function(e) {
+        e.preventDefault();
+        this.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) {
+            fileInput.files = e.dataTransfer.files;
+            handleFile(e.dataTransfer.files[0]);
+        }
+    });
+
+    // Form submission - show loading state
+    document.getElementById('upload-form').addEventListener('submit', function() {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner"></span> Validating...';
+    });
+});
+</script>
+{% endblock %}

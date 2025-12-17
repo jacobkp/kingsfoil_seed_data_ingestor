@@ -1,0 +1,320 @@
+{% extends "base.html" %}
+
+{% block title %}Validation Results - {{ source.source_name }} - Kingsfoil{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <h1>Validation Results</h1>
+    <p class="page-subtitle">{{ source.source_name }}</p>
+</div>
+
+<!-- Validation Status -->
+<div class="card mb-lg">
+    <div class="card-body">
+        <div class="validation-header">
+            {% if validation_passed %}
+            <div class="validation-icon success">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+            </div>
+            <div>
+                <h2 class="validation-title text-success">Validation Passed</h2>
+                <p class="validation-subtitle">The file is ready to be ingested.</p>
+            </div>
+            {% else %}
+            <div class="validation-icon error">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="15" y1="9" x2="9" y2="15"></line>
+                    <line x1="9" y1="9" x2="15" y2="15"></line>
+                </svg>
+            </div>
+            <div>
+                <h2 class="validation-title text-error">Validation Failed</h2>
+                <p class="validation-subtitle">Please fix the errors and try again.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Errors -->
+{% if errors %}
+<div class="alert alert-error mb-lg">
+    <div class="alert-title">Errors ({{ errors | length }})</div>
+    <ul class="alert-list">
+        {% for error in errors %}
+        <li>{{ error }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+<!-- Warnings -->
+{% if warnings %}
+<div class="alert alert-warning mb-lg">
+    <div class="alert-title">Warnings ({{ warnings | length }})</div>
+    <ul class="alert-list">
+        {% for warning in warnings %}
+        <li>{{ warning }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+{% if validation_passed %}
+<!-- File Info -->
+<div class="card mb-lg">
+    <div class="card-header">
+        <h3 class="mb-0">File Information</h3>
+    </div>
+    <div class="card-body">
+        <div class="stats-grid">
+            <div class="stat-item">
+                <div class="stat-value">{{ file_info.row_count | default(0) | int }}</div>
+                <div class="stat-label">Data Rows</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">{{ file_info.header_row }}</div>
+                <div class="stat-label">Header Row</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">{{ column_map | length }}</div>
+                <div class="stat-label">Columns Mapped</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">{{ "%.1f" | format(file_info.size / 1024 / 1024) }} MB</div>
+                <div class="stat-label">File Size</div>
+            </div>
+        </div>
+        <div class="mt-lg">
+            <strong>File:</strong> {{ file_info.name }}<br>
+            <strong>Version:</strong> {{ version_label }}{% if variant %} ({{ variant }}){% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Column Mapping -->
+<div class="card mb-lg">
+    <div class="card-header">
+        <h3 class="mb-0">Column Mapping</h3>
+    </div>
+    <div class="card-body">
+        <div class="table-container">
+            <table class="table table-compact">
+                <thead>
+                    <tr>
+                        <th>Internal Name</th>
+                        <th>File Header</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for internal_name, file_header in column_map.items() %}
+                    <tr>
+                        <td><code>{{ internal_name }}</code></td>
+                        <td>{{ file_header }}</td>
+                        <td><span class="badge badge-success">Mapped</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Unmapped Columns -->
+{% if unmapped_columns %}
+<div class="alert alert-info mb-lg">
+    <div class="alert-title">Unmapped Columns ({{ unmapped_columns | length }})</div>
+    <p>The following columns in the file are not mapped to any internal field and will be ignored:</p>
+    <ul class="alert-list">
+        {% for col in unmapped_columns %}
+        <li>{{ col }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+<!-- Multi-Part Append Warning -->
+{% if will_append %}
+<div class="alert alert-warning mb-lg" style="border: 2px solid var(--color-warning); background: var(--color-warning-bg);">
+    <div class="alert-title" style="font-size: var(--font-size-lg);">Adding Part File to Existing Version</div>
+    <p style="margin-top: var(--space-md);">
+        This file will be <strong>APPENDED</strong> to an existing version:
+    </p>
+    <table class="table table-compact" style="margin: var(--space-md) 0; background: white;">
+        <tbody>
+            <tr>
+                <td style="width: 150px;"><strong>Version:</strong></td>
+                <td><code style="font-size: var(--font-size-base);">{{ version_label }}</code></td>
+            </tr>
+            <tr>
+                <td><strong>Variant:</strong></td>
+                <td><code style="font-size: var(--font-size-base);">{{ variant }}</code></td>
+            </tr>
+            <tr>
+                <td><strong>Existing Parts:</strong></td>
+                <td>{{ existing_part_count }} part(s) with {{ existing_record_count | int }} records</td>
+            </tr>
+            <tr>
+                <td><strong>New Part:</strong></td>
+                <td>Part {{ existing_part_count + 1 }} with ~{{ file_info.row_count | int }} rows</td>
+            </tr>
+        </tbody>
+    </table>
+    <p class="text-muted" style="margin-top: var(--space-sm);">
+        After ingestion, this version will have {{ existing_part_count + 1 }} parts.
+    </p>
+</div>
+{% elif version_exists %}
+<!-- Version Warning (for non-multi-part sources) -->
+<div class="alert alert-warning mb-lg">
+    <div class="alert-title">Version Already Exists</div>
+    <p>Version <strong>{{ version_label }}</strong>{% if variant %} ({{ variant }}){% endif %} already exists with status: <strong>{{ version_status }}</strong>.</p>
+    <p>Continuing will create a new upload attempt. If successful, you can mark it as current.</p>
+</div>
+{% endif %}
+
+<!-- Ingest Form -->
+<div class="card">
+    <form action="/upload/{{ source.source_code }}/ingest" method="post" id="ingest-form">
+        <!-- Hidden fields for re-validation -->
+        <input type="hidden" name="upload_id" value="{{ upload_id }}">
+        <input type="hidden" name="file_ext" value="{{ file_ext }}">
+        <input type="hidden" name="file_hash" value="{{ file_hash }}">
+        <input type="hidden" name="original_filename" value="{{ original_filename }}">
+        <input type="hidden" name="file_size" value="{{ file_size }}">
+        <input type="hidden" name="year" value="{{ year }}">
+        <input type="hidden" name="quarter" value="{{ quarter }}">
+        {% if variant %}
+        <input type="hidden" name="variant" value="{{ variant }}">
+        {% endif %}
+        <input type="hidden" name="header_row_index" value="{{ header_row_index }}">
+
+        <div class="card-body">
+            {% if not will_append %}
+            <div class="form-checkbox">
+                <input type="checkbox" id="mark_as_current" name="mark_as_current" value="true">
+                <label for="mark_as_current">
+                    <strong>Mark as Current Version</strong>
+                    <br><span class="text-muted">This will make the new data the active version for queries.</span>
+                </label>
+            </div>
+            {% else %}
+            <p class="text-muted">
+                <strong>Note:</strong> Multi-part uploads append to the existing version.
+                The version is already marked as complete; "Mark as Current" applies to the full version.
+            </p>
+            {% endif %}
+        </div>
+
+        <div class="card-footer">
+            {% if will_append %}
+            <button type="button" class="btn btn-warning btn-lg" id="ingest-btn" onclick="confirmAppend()">
+                Append Part {{ existing_part_count + 1 }} to {{ version_label }} ({{ variant }})
+            </button>
+            {% else %}
+            <button type="submit" class="btn btn-success btn-lg" id="ingest-btn">
+                Confirm & Ingest Data
+            </button>
+            {% endif %}
+            <a href="/upload/{{ source.source_code }}" class="btn btn-secondary btn-lg">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<!-- Confirmation Modal for Multi-Part Append -->
+{% if will_append %}
+<div id="confirm-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: white; padding: var(--space-xl); border-radius: var(--radius-lg); max-width: 500px; margin: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
+        <h3 style="margin: 0 0 var(--space-lg); color: var(--color-warning);">Confirm Part File Append</h3>
+        <p>You are about to append this file as <strong>Part {{ existing_part_count + 1 }}</strong> to:</p>
+        <div style="background: var(--color-gray-50); padding: var(--space-md); border-radius: var(--radius-md); margin: var(--space-md) 0;">
+            <strong>Version:</strong> {{ version_label }}<br>
+            <strong>Variant:</strong> {{ variant }}<br>
+            <strong>Current Records:</strong> {{ existing_record_count | int }}
+        </div>
+        <p class="text-muted">This action cannot be easily undone. Make sure you are uploading the correct file for this version and variant.</p>
+        <div style="display: flex; gap: var(--space-md); margin-top: var(--space-lg);">
+            <button type="button" class="btn btn-warning btn-lg" style="flex: 1;" onclick="submitForm()">
+                Yes, Append Part File
+            </button>
+            <button type="button" class="btn btn-secondary btn-lg" style="flex: 1;" onclick="closeModal()">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% else %}
+
+<!-- Validation Failed - Back Button -->
+<div class="card">
+    <div class="card-footer">
+        <a href="/upload/{{ source.source_code }}" class="btn btn-primary btn-lg">Upload Another File</a>
+        <a href="/" class="btn btn-secondary btn-lg">Back to Dashboard</a>
+    </div>
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('ingest-form');
+    const btn = document.getElementById('ingest-btn');
+
+    if (form && btn) {
+        form.addEventListener('submit', function() {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Ingesting...';
+        });
+    }
+});
+
+// Modal functions for multi-part append confirmation
+function confirmAppend() {
+    const modal = document.getElementById('confirm-modal');
+    if (modal) {
+        modal.style.display = 'flex';
+    }
+}
+
+function closeModal() {
+    const modal = document.getElementById('confirm-modal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+function submitForm() {
+    const form = document.getElementById('ingest-form');
+    const btn = document.getElementById('ingest-btn');
+    if (form && btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span> Appending...';
+        closeModal();
+        form.submit();
+    }
+}
+
+// Close modal on escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeModal();
+    }
+});
+
+// Close modal on background click
+document.addEventListener('click', function(e) {
+    const modal = document.getElementById('confirm-modal');
+    if (e.target === modal) {
+        closeModal();
+    }
+});
+</script>
+{% endblock %}

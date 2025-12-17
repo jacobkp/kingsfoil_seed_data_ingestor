@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}{{ error_title }} - {{ source.source_name }} - Kingsfoil{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <h1>{{ error_title }}</h1>
+    <p class="page-subtitle">{{ source.source_name }}</p>
+</div>
+
+<!-- Error Message -->
+<div class="card mb-lg">
+    <div class="card-body">
+        <div class="validation-header">
+            <div class="validation-icon error">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+            </div>
+            <div>
+                <h2 class="validation-title text-error">{{ error_title }}</h2>
+                <p class="validation-subtitle">{{ error_message }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if all_errors %}
+<div class="alert alert-error mb-lg">
+    <div class="alert-title">All Errors ({{ all_errors | length }})</div>
+    <ul class="alert-list">
+        {% for error in all_errors[:10] %}
+        <li>{{ error }}</li>
+        {% endfor %}
+        {% if all_errors | length > 10 %}
+        <li>... and {{ all_errors | length - 10 }} more errors</li>
+        {% endif %}
+    </ul>
+</div>
+{% endif %}
+
+<!-- Actions -->
+<div class="card">
+    <div class="card-footer">
+        <a href="/upload/{{ source.source_code }}" class="btn btn-primary btn-lg">Try Again</a>
+        <a href="/" class="btn btn-secondary btn-lg">Back to Dashboard</a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Successful - {{ source.source_name }} - Kingsfoil{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <h1>Upload Successful</h1>
+    <p class="page-subtitle">{{ source.source_name }}</p>
+</div>
+
+<!-- Success Message -->
+<div class="card mb-lg">
+    <div class="card-body">
+        <div class="validation-header">
+            <div class="validation-icon success">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+            </div>
+            <div>
+                {% if result.is_appending %}
+                <h2 class="validation-title text-success">Part File Added Successfully</h2>
+                <p class="validation-subtitle">
+                    Added Part {{ result.part_number }} to Version {{ version_label }}{% if variant %} ({{ variant }}){% endif %}
+                </p>
+                {% else %}
+                <h2 class="validation-title text-success">Data Ingested Successfully</h2>
+                <p class="validation-subtitle">
+                    Version {{ version_label }}{% if variant %} ({{ variant }}){% endif %}
+                    {% if marked_as_current %}<span class="badge badge-success ml-1">CURRENT</span>{% endif %}
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if result.is_appending %}
+<div class="alert alert-info mb-lg">
+    <strong>Multi-Part Upload:</strong> This file was appended to an existing version.
+    You can continue uploading additional part files for this version, or upload a different version.
+</div>
+{% endif %}
+
+<!-- Stats Summary -->
+<div class="card mb-lg">
+    <div class="card-header">
+        <h3 class="mb-0">Ingestion Summary</h3>
+    </div>
+    <div class="card-body">
+        <div class="stats-grid">
+            <div class="stat-item">
+                <div class="stat-value">{{ result.records_processed | int }}</div>
+                <div class="stat-label">Rows Processed</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value text-success">{{ result.records_inserted | int }}</div>
+                <div class="stat-label">Records Inserted</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value {% if result.duplicates_skipped > 0 %}text-warning{% endif %}">
+                    {{ result.duplicates_skipped | int }}
+                </div>
+                <div class="stat-label">Duplicates Skipped</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value {% if result.failed_rows %}text-error{% endif %}">
+                    {{ result.failed_rows | length if result.failed_rows else 0 }}
+                </div>
+                <div class="stat-label">Rows Failed</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">{{ "%.1f" | format(file_info.size / 1024 / 1024) }} MB</div>
+                <div class="stat-label">File Size</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Failed Rows (if any) -->
+{% if result.failed_rows %}
+<div class="card mb-lg">
+    <div class="card-header">
+        <h3 class="mb-0 text-error">Failed Rows ({{ result.failed_rows | length }})</h3>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-warning mb-lg">
+            The following rows could not be inserted due to data issues. The remaining rows were processed successfully.
+        </div>
+        <div class="table-container" style="max-height: 400px; overflow-y: auto;">
+            <table class="table table-compact">
+                <thead>
+                    <tr>
+                        <th style="width: 80px;">Row #</th>
+                        <th>Error</th>
+                        <th>Key Values</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for failed in result.failed_rows[:100] %}
+                    <tr>
+                        <td><strong>{{ failed.row_number }}</strong></td>
+                        <td style="color: var(--color-error); font-size: var(--font-size-sm);">
+                            {{ failed.error | truncate(150) }}
+                        </td>
+                        <td style="font-size: var(--font-size-xs);">
+                            {% if failed.record %}
+                            <code>{{ failed.record.items() | list | map('join', ': ') | list | join(', ') | truncate(100) }}</code>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if result.failed_rows | length > 100 %}
+        <p class="text-muted mt-md">Showing first 100 of {{ result.failed_rows | length }} failed rows. Check ingestion logs for complete list.</p>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Column Statistics -->
+{% if result.column_stats %}
+<div class="card mb-lg">
+    <div class="card-header">
+        <h3 class="mb-0">Column Statistics</h3>
+    </div>
+    <div class="card-body">
+        <div class="table-container">
+            <table class="table table-compact">
+                <thead>
+                    <tr>
+                        <th>Column</th>
+                        <th>Null Count</th>
+                        <th>Null %</th>
+                        <th>Sample Values</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for col_name, stats in result.column_stats.items() %}
+                    <tr>
+                        <td><code>{{ col_name }}</code></td>
+                        <td>{{ stats.null_count | int }}</td>
+                        <td>
+                            {% if stats.null_percentage is defined %}
+                            {% if stats.null_percentage > 50 %}
+                            <span class="text-warning">{{ stats.null_percentage }}%</span>
+                            {% else %}
+                            {{ stats.null_percentage }}%
+                            {% endif %}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if stats.sample_values %}
+                            <code>{{ stats.sample_values | join(', ') | truncate(50) }}</code>
+                            {% else %}
+                            <span class="text-muted">No values</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- File Info -->
+<div class="card mb-lg">
+    <div class="card-header">
+        <h3 class="mb-0">File Details</h3>
+    </div>
+    <div class="card-body">
+        <table class="table table-compact">
+            <tbody>
+                <tr>
+                    <td><strong>Filename</strong></td>
+                    <td>{{ file_info.name }}</td>
+                </tr>
+                <tr>
+                    <td><strong>Version</strong></td>
+                    <td>{{ version_label }}{% if variant %} ({{ variant }}){% endif %}</td>
+                </tr>
+                <tr>
+                    <td><strong>Target Table</strong></td>
+                    <td><code>{{ source.target_table }}</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Status</strong></td>
+                    <td>
+                        {% if marked_as_current %}
+                        <span class="badge badge-success">Current Version</span>
+                        {% else %}
+                        <span class="badge badge-gray">Not Current</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Actions -->
+<div class="card">
+    <div class="card-footer">
+        <a href="/upload/{{ source.source_code }}" class="btn btn-primary btn-lg">Upload Another File</a>
+        <a href="/" class="btn btn-secondary btn-lg">Back to Dashboard</a>
+    </div>
+</div>
+{% endblock %}
