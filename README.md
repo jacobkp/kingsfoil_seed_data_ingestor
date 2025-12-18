@@ -106,6 +106,3 @@ python -m scripts.migrate_add_part_count
 | `DEBUG` | Enable debug mode | `false` |
 | `MAX_UPLOAD_SIZE_MB` | Max file upload size | `100` |
 
-## License
-
-MIT
