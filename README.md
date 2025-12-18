@@ -74,6 +74,14 @@ kingsfoil-pipeline/
 └── .env.example
 ```
 
+## Schema Reference
+
+See [SCHEMA.md](SCHEMA.md) for complete documentation of:
+- All CMS data tables and columns
+- Data types and relationships
+- Common SQL queries
+- File format notes and header mappings
+
 ## Adding New Data Sources
 
 Data sources are configured in the `meta.data_sources` table. Each source defines:
